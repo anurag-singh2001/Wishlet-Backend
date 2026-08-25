@@ -5,6 +5,7 @@ export interface Env {
   HOST: string;
   DATABASE_URL: string;
   CORS_ORIGIN: string;
+  FRONTEND_URL: string;
   NODE_ENV: "development" | "production" | "test";
   CLOUDINARY_CLOUD_NAME: string;
   CLOUDINARY_API_KEY: string;
@@ -24,6 +25,7 @@ export const env: Env = {
   HOST: process.env["HOST"] ?? "0.0.0.0",
   DATABASE_URL: requireEnv("DATABASE_URL"),
   CORS_ORIGIN: process.env["CORS_ORIGIN"] ?? "http://localhost:3000",
+  FRONTEND_URL: process.env["FRONTEND_URL"] ?? process.env["CORS_ORIGIN"] ?? "http://localhost:3000",
   NODE_ENV: (process.env["NODE_ENV"] as Env["NODE_ENV"]) ?? "development",
   CLOUDINARY_CLOUD_NAME: process.env["CLOUDINARY_CLOUD_NAME"] ?? "",
   CLOUDINARY_API_KEY: process.env["CLOUDINARY_API_KEY"] ?? "",

@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { wishService } from "../services/wish.service.js";
 import { CreateWishSchema, GetWishParamsSchema } from "../schemas/wish.schema.js";
+import { env } from "../config/env.js";
 
 export class WishController {
   async getRootInfo(_request: FastifyRequest, reply: FastifyReply) {
@@ -21,7 +22,32 @@ export class WishController {
     // Call service
     const wish = await wishService.createWish(data);
     
-    // Return created response with public URL structure
+    // Dynamically resolve frontend base URL from request origin, referer, or env
+    let baseUrl = env.FRONTEND_URL && !env.FRONTEND_URL.includes("localhost") ? env.FRONTEND_URL : "";
+
+    if (!baseUrl || baseUrl === "*") {
+      const originHeader = request.headers.origin;
+      const refererHeader = request.headers.referer;
+
+      if (originHeader && !originHeader.includes("localhost")) {
+        baseUrl = originHeader;
+      } else if (refererHeader) {
+        try {
+          baseUrl = new URL(refererHeader).origin;
+        } catch {
+          // ignore invalid referer URL
+        }
+      }
+    }
+
+    if (!baseUrl) {
+      baseUrl = process.env.FRONTEND_URL || env.CORS_ORIGIN || "http://localhost:3000";
+    }
+
+    // Strip any trailing slashes
+    baseUrl = baseUrl.replace(/\/+$/, "");
+    
+    // Return created response with dynamic public URL
     return reply.status(201).send({
       id: wish.id,
       slug: wish.slug,
@@ -29,7 +55,7 @@ export class WishController {
       occasion: wish.occasion,
       content: wish.content,
       createdAt: wish.createdAt,
-      url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/w/${wish.slug}`
+      url: `${baseUrl}/w/${wish.slug}`
     });
   }
 
