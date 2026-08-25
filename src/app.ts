@@ -18,12 +18,31 @@ export async function buildApp() {
   // --- Setup Error Handler ---
   setupErrorHandler(app);
 
-  // --- Plugins ---
   await app.register(cors, {
-    origin: env.CORS_ORIGIN.includes(",") 
-      ? env.CORS_ORIGIN.split(",").map(o => o.trim()) 
-      : env.CORS_ORIGIN,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (env.CORS_ORIGIN === "*") return cb(null, true);
+
+      const allowedOrigins = env.CORS_ORIGIN
+        .split(",")
+        .map((o) => o.trim().replace(/\/+$/, ""))
+        .filter(Boolean);
+
+      const cleanOrigin = origin.replace(/\/+$/, "");
+
+      if (allowedOrigins.includes(cleanOrigin) || allowedOrigins.includes("*")) {
+        return cb(null, true);
+      }
+
+      if (env.CORS_ORIGIN.includes("vercel.app") && cleanOrigin.endsWith(".vercel.app")) {
+        return cb(null, true);
+      }
+
+      cb(new Error(`Not allowed by CORS: ${origin}`), false);
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    credentials: true,
   });
   await app.register(multipart);
 
