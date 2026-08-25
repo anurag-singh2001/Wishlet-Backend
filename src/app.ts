@@ -13,6 +13,7 @@ export async function buildApp() {
     logger: {
       level: env.NODE_ENV === "production" ? "info" : "debug",
     },
+    bodyLimit: 15 * 1024 * 1024, // 15MB payload limit for wishes with media/signatures
   });
 
   // --- Setup Error Handler ---
@@ -44,7 +45,11 @@ export async function buildApp() {
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
     credentials: true,
   });
-  await app.register(multipart);
+  await app.register(multipart, {
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB file size limit
+    },
+  });
 
   // --- Routes ---
   await app.register(healthRoutes, { prefix: "/" });
