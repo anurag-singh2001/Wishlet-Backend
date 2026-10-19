@@ -63,6 +63,19 @@ export class WishController {
     });
   }
 
+  async recordView(request: FastifyRequest, reply: FastifyReply) {
+    const { slug } = GetWishParamsSchema.parse(request.params);
+    const viewCount = await wishService.recordView(slug);
+    return reply.send({ viewCount });
+  }
+
+  async getWishStats(request: FastifyRequest, reply: FastifyReply) {
+    const { slug } = GetWishParamsSchema.parse(request.params);
+    const { "x-delete-token": deleteToken } = DeleteWishHeadersSchema.parse(request.headers);
+    const stats = await wishService.getWishStats(slug, deleteToken);
+    return reply.send({ viewCount: stats.viewCount, createdAt: stats.createdAt });
+  }
+
   async deleteWish(request: FastifyRequest, reply: FastifyReply) {
     const { slug: id } = GetWishParamsSchema.parse(request.params);
     const { "x-delete-token": deleteToken } = DeleteWishHeadersSchema.parse(request.headers);

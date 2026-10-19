@@ -9,5 +9,11 @@ export async function wishRoutes(app: FastifyInstance) {
     wishController.createWish,
   );
   app.get("/:slug", wishController.getWishBySlug);
+  app.post(
+    "/:slug/view",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    wishController.recordView,
+  );
+  app.get("/:slug/stats", wishController.getWishStats);
   app.delete("/:slug", wishController.deleteWish);
 }

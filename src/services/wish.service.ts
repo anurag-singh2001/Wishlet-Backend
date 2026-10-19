@@ -75,15 +75,35 @@ export class WishService {
     return wish;
   }
 
-  async deleteWish(id: string, deleteToken: string) {
-    const wish = (await wishRepository.findWishById(id)) || (await wishRepository.findWishBySlug(id));
+  private assertDeleteToken<T extends { deleteTokenHash: string | null }>(
+    wish: T | null,
+    deleteToken: string,
+  ): asserts wish is T {
     if (!wish) {
       throw new ApiError(404, "NOT_FOUND", "Wish not found");
     }
-
     if (!isValidDeleteToken(deleteToken, wish.deleteTokenHash)) {
       throw new ApiError(403, "FORBIDDEN", "Invalid delete token");
     }
+  }
+
+  async recordView(slug: string): Promise<number> {
+    const viewCount = await wishRepository.incrementViewCount(slug);
+    if (viewCount === null) {
+      throw new ApiError(404, "NOT_FOUND", "Wish not found");
+    }
+    return viewCount;
+  }
+
+  async getWishStats(slug: string, deleteToken: string) {
+    const wish = await wishRepository.findWishBySlug(slug);
+    this.assertDeleteToken(wish, deleteToken);
+    return { viewCount: wish.viewCount, createdAt: wish.createdAt };
+  }
+
+  async deleteWish(id: string, deleteToken: string) {
+    const wish = (await wishRepository.findWishById(id)) || (await wishRepository.findWishBySlug(id));
+    this.assertDeleteToken(wish, deleteToken);
 
     // Delete Cloudinary asset if public ID is present
     const contentObj = (wish.content || {}) as Record<string, unknown>;

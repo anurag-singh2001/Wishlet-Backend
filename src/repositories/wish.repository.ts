@@ -20,6 +20,22 @@ export class WishRepository {
     });
   }
 
+  async incrementViewCount(slug: string): Promise<number | null> {
+    try {
+      const updated = await prisma.wish.update({
+        where: { slug },
+        data: { viewCount: { increment: 1 } },
+        select: { viewCount: true },
+      });
+      return updated.viewCount;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   async deleteWish(id: string) {
     return prisma.wish.delete({
       where: { id },

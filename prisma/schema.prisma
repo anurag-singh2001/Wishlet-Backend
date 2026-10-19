@@ -19,6 +19,7 @@ model Wish {
   photoPublicId   String?
   deleteTokenHash String?
   content         Json
+  viewCount       Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

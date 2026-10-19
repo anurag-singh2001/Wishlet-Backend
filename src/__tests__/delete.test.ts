@@ -32,6 +32,7 @@ describe("Wish deletion requires the creator's delete token", () => {
         photoPublicId: null,
         deleteTokenHash: data.deleteTokenHash ?? null,
         content: {},
+        viewCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
