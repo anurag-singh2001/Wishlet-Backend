@@ -11,3 +11,7 @@ export type CreateWishInput = z.infer<typeof CreateWishSchema>;
 export const GetWishParamsSchema = z.object({
   slug: z.string().min(1, "slug is required"),
 });
+
+export const DeleteWishHeadersSchema = z.object({
+  "x-delete-token": z.string().min(1, "X-Delete-Token header is required"),
+});

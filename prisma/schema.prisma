@@ -11,17 +11,17 @@ datasource db {
 }
 
 model Wish {
-  id            String   @id @default(cuid())
-  slug          String   @unique
-  templateId    String
-  occasion      String
-  photoUrl      String?
-  photoPublicId String?
-  content       Json
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  templateId      String
+  occasion        String
+  photoUrl        String?
+  photoPublicId   String?
+  deleteTokenHash String?
+  content         Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([slug])
   @@index([occasion])
 }
-

@@ -1,23 +1,33 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
+import rateLimit from "@fastify/rate-limit";
 import { env } from "./config/env.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { wishRoutes } from "./routes/wish.routes.js";
 import { templateRoutes } from "./routes/template.routes.js";
 import { uploadRoutes } from "./routes/upload.routes.js";
-import { setupErrorHandler } from "./plugins/error-handler.js";
+import { ApiError, setupErrorHandler } from "./plugins/error-handler.js";
 
 export async function buildApp() {
   const app = Fastify({
     logger: {
       level: env.NODE_ENV === "production" ? "info" : "debug",
     },
-    bodyLimit: 15 * 1024 * 1024, // 15MB payload limit for wishes with media/signatures
+    trustProxy: true, // real client IPs behind Render/Railway proxies
+    bodyLimit: 1024 * 1024, // 1MB JSON limit; photos go direct to Cloudinary (multipart has its own limit)
   });
 
   // --- Setup Error Handler ---
   setupErrorHandler(app);
+
+  await app.register(rateLimit, {
+    global: true,
+    max: 100,
+    timeWindow: "1 minute",
+    errorResponseBuilder: () =>
+      new ApiError(429, "RATE_LIMITED", "Too many requests. Please slow down and try again shortly."),
+  });
 
   await app.register(cors, {
     origin: (origin, cb) => {
@@ -35,14 +45,14 @@ export async function buildApp() {
         return cb(null, true);
       }
 
-      if (env.CORS_ORIGIN.includes("vercel.app") && cleanOrigin.endsWith(".vercel.app")) {
+      if (env.CORS_PREVIEW_SUFFIX && cleanOrigin.endsWith(env.CORS_PREVIEW_SUFFIX)) {
         return cb(null, true);
       }
 
       cb(new Error(`Not allowed by CORS: ${origin}`), false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "X-Delete-Token"],
     credentials: true,
   });
   await app.register(multipart, {

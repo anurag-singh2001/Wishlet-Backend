@@ -6,7 +6,7 @@ export class ApiError extends Error {
   constructor(
     public statusCode: number,
     public errorCode: string,
-    message: string
+    message: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -30,11 +30,31 @@ export function setupErrorHandler(app: FastifyInstance) {
       });
     }
 
-    if (error instanceof Prisma.PrismaClientInitializationError || error instanceof Prisma.PrismaClientKnownRequestError) {
+    const status = (error as FastifyError).statusCode;
+    if (status && status >= 400 && status < 500) {
+      return reply.status(status).send({
+        error: status === 413 ? "PAYLOAD_TOO_LARGE" : "BAD_REQUEST",
+        message: error.message,
+      });
+    }
+
+    // P1xxx codes are connection/auth failures; anything else is a query or schema problem.
+    const isConnectionError =
+      error instanceof Prisma.PrismaClientInitializationError ||
+      (error instanceof Prisma.PrismaClientKnownRequestError && error.code.startsWith("P1"));
+    if (isConnectionError) {
       app.log.error(error);
       return reply.status(503).send({
-        error: "DATABASE_ERROR",
+        error: "DATABASE_UNAVAILABLE",
         message: "Unable to connect to database. Please check DATABASE_URL in backend/.env",
+      });
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      app.log.error(error);
+      return reply.status(500).send({
+        error: "DATABASE_ERROR",
+        message: `Database query failed (${error.code}). Check the server logs.`,
       });
     }
 

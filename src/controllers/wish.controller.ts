@@ -1,7 +1,12 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { wishService } from "../services/wish.service.js";
-import { CreateWishSchema, GetWishParamsSchema } from "../schemas/wish.schema.js";
+import {
+  CreateWishSchema,
+  DeleteWishHeadersSchema,
+  GetWishParamsSchema,
+} from "../schemas/wish.schema.js";
 import { env } from "../config/env.js";
+import { resolvePublicBaseUrl } from "../utils/public-url.js";
 
 export class WishController {
   async getRootInfo(_request: FastifyRequest, reply: FastifyReply) {
@@ -22,31 +27,13 @@ export class WishController {
     // Call service
     const wish = await wishService.createWish(data);
     
-    // Dynamically resolve frontend base URL from request origin, referer, or env
-    let baseUrl = env.FRONTEND_URL && !env.FRONTEND_URL.includes("localhost") ? env.FRONTEND_URL : "";
+    const baseUrl = resolvePublicBaseUrl({
+      frontendUrl: env.FRONTEND_URL,
+      corsOrigin: env.CORS_ORIGIN,
+      origin: request.headers.origin,
+      referer: request.headers.referer,
+    });
 
-    if (!baseUrl || baseUrl === "*") {
-      const originHeader = request.headers.origin;
-      const refererHeader = request.headers.referer;
-
-      if (originHeader && !originHeader.includes("localhost")) {
-        baseUrl = originHeader;
-      } else if (refererHeader) {
-        try {
-          baseUrl = new URL(refererHeader).origin;
-        } catch {
-          // ignore invalid referer URL
-        }
-      }
-    }
-
-    if (!baseUrl) {
-      baseUrl = process.env.FRONTEND_URL || env.CORS_ORIGIN || "http://localhost:3000";
-    }
-
-    // Strip any trailing slashes
-    baseUrl = baseUrl.replace(/\/+$/, "");
-    
     // Return created response with dynamic public URL
     return reply.status(201).send({
       id: wish.id,
@@ -55,6 +42,7 @@ export class WishController {
       occasion: wish.occasion,
       content: wish.content,
       createdAt: wish.createdAt,
+      deleteToken: wish.deleteToken,
       url: `${baseUrl}/w/${wish.slug}`
     });
   }
@@ -77,7 +65,8 @@ export class WishController {
 
   async deleteWish(request: FastifyRequest, reply: FastifyReply) {
     const { slug: id } = GetWishParamsSchema.parse(request.params);
-    await wishService.deleteWish(id);
+    const { "x-delete-token": deleteToken } = DeleteWishHeadersSchema.parse(request.headers);
+    await wishService.deleteWish(id, deleteToken);
 
     return reply.send({
       success: true,

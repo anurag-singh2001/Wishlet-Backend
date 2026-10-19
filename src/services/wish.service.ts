@@ -5,6 +5,17 @@ import { ApiError } from "../plugins/error-handler.js";
 import { Prisma } from "@prisma/client";
 import crypto from "node:crypto";
 
+function hashDeleteToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function isValidDeleteToken(token: string, storedHash: string | null): boolean {
+  if (!storedHash) return false;
+  const given = Buffer.from(hashDeleteToken(token), "hex");
+  const stored = Buffer.from(storedHash, "hex");
+  return given.length === stored.length && crypto.timingSafeEqual(given, stored);
+}
+
 export class WishService {
   async createWish(data: CreateWishInput) {
     const MAX_RETRIES = 3;
@@ -21,6 +32,10 @@ export class WishService {
       ? contentObj["photoPublicId"]
       : null;
     
+    // Returned once to the creator; only its hash is stored.
+    const deleteToken = crypto.randomBytes(24).toString("base64url");
+    const deleteTokenHash = hashDeleteToken(deleteToken);
+
     for (let i = 0; i < MAX_RETRIES; i++) {
       const randomId = crypto.randomBytes(4).toString("hex");
       const cleanOccasion = data.occasion.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -33,11 +48,12 @@ export class WishService {
           occasion: data.occasion,
           photoUrl,
           photoPublicId,
+          deleteTokenHash,
           content: data.content as Prisma.InputJsonValue,
           slug,
         });
         
-        return created;
+        return { ...created, deleteToken };
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
           if (i === MAX_RETRIES - 1) {
@@ -59,10 +75,14 @@ export class WishService {
     return wish;
   }
 
-  async deleteWish(id: string) {
+  async deleteWish(id: string, deleteToken: string) {
     const wish = (await wishRepository.findWishById(id)) || (await wishRepository.findWishBySlug(id));
     if (!wish) {
       throw new ApiError(404, "NOT_FOUND", "Wish not found");
+    }
+
+    if (!isValidDeleteToken(deleteToken, wish.deleteTokenHash)) {
+      throw new ApiError(403, "FORBIDDEN", "Invalid delete token");
     }
 
     // Delete Cloudinary asset if public ID is present

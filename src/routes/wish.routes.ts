@@ -3,7 +3,11 @@ import { wishController } from "../controllers/wish.controller.js";
 
 export async function wishRoutes(app: FastifyInstance) {
   app.get("/", wishController.getRootInfo);
-  app.post("/", wishController.createWish);
+  app.post(
+    "/",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    wishController.createWish,
+  );
   app.get("/:slug", wishController.getWishBySlug);
   app.delete("/:slug", wishController.deleteWish);
 }
