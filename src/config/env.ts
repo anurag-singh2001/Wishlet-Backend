@@ -11,6 +11,7 @@ export interface Env {
   CLOUDINARY_CLOUD_NAME: string;
   CLOUDINARY_API_KEY: string;
   CLOUDINARY_API_SECRET: string;
+  WISH_TTL_HOURS: number;
 }
 
 function requireEnv(key: string): string {
@@ -19,6 +20,11 @@ function requireEnv(key: string): string {
     throw new Error(`Missing required environment variable: ${key}`);
   }
   return value;
+}
+
+function parsePositive(raw: string | undefined, fallback: number): number {
+  const n = Number(raw);
+  return raw && Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 export const env: Env = {
@@ -32,5 +38,6 @@ export const env: Env = {
   CLOUDINARY_CLOUD_NAME: process.env["CLOUDINARY_CLOUD_NAME"] ?? "",
   CLOUDINARY_API_KEY: process.env["CLOUDINARY_API_KEY"] ?? "",
   CLOUDINARY_API_SECRET: process.env["CLOUDINARY_API_SECRET"] ?? "",
+  WISH_TTL_HOURS: parsePositive(process.env["WISH_TTL_HOURS"], 24),
 };
 

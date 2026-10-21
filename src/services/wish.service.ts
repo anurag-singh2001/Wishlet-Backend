@@ -2,6 +2,7 @@ import { wishRepository } from "../repositories/wish.repository.js";
 import { storageService } from "./storage.service.js";
 import type { CreateWishInput } from "../schemas/wish.schema.js";
 import { ApiError } from "../plugins/error-handler.js";
+import { env } from "../config/env.js";
 import { Prisma } from "@prisma/client";
 import crypto from "node:crypto";
 
@@ -49,10 +50,12 @@ export class WishService {
           photoUrl,
           photoPublicId,
           deleteTokenHash,
+          expiresAt: new Date(Date.now() + env.WISH_TTL_HOURS * 3600_000),
           content: data.content as Prisma.InputJsonValue,
           slug,
         });
         
+        void this.purgeExpired().catch((err: unknown) => console.error("purgeExpired failed", err));
         return { ...created, deleteToken };
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -72,7 +75,38 @@ export class WishService {
     if (!wish) {
       throw new ApiError(404, "NOT_FOUND", "Wish not found");
     }
+    await this.rejectIfExpired(wish);
     return wish;
+  }
+
+  private async rejectIfExpired(wish: {
+    id: string;
+    photoPublicId: string | null;
+    expiresAt: Date | null;
+  }): Promise<void> {
+    if (!wish.expiresAt || wish.expiresAt.getTime() >= Date.now()) return;
+    try {
+      if (wish.photoPublicId) await storageService.deleteImage(wish.photoPublicId);
+      await wishRepository.deleteWish(wish.id);
+    } catch (err) {
+      console.error("Failed to delete expired wish", wish.id, err);
+    }
+    throw new ApiError(410, "EXPIRED", "This wish has expired.");
+  }
+
+  /** Deletes all expired wishes and their photos (best-effort). Returns the number removed. */
+  async purgeExpired(): Promise<number> {
+    const cutoff = new Date();
+    const expired = await wishRepository.findExpired(cutoff);
+    for (const { photoPublicId } of expired) {
+      if (!photoPublicId) continue;
+      try {
+        await storageService.deleteImage(photoPublicId);
+      } catch (err) {
+        console.error("Failed to delete expired wish photo", photoPublicId, err);
+      }
+    }
+    return wishRepository.deleteExpired(cutoff);
   }
 
   private assertDeleteToken<T extends { deleteTokenHash: string | null }>(
@@ -88,6 +122,11 @@ export class WishService {
   }
 
   async recordView(slug: string): Promise<number> {
+    const wish = await wishRepository.findWishBySlug(slug);
+    if (!wish) {
+      throw new ApiError(404, "NOT_FOUND", "Wish not found");
+    }
+    await this.rejectIfExpired(wish);
     const viewCount = await wishRepository.incrementViewCount(slug);
     if (viewCount === null) {
       throw new ApiError(404, "NOT_FOUND", "Wish not found");
@@ -98,7 +137,7 @@ export class WishService {
   async getWishStats(slug: string, deleteToken: string) {
     const wish = await wishRepository.findWishBySlug(slug);
     this.assertDeleteToken(wish, deleteToken);
-    return { viewCount: wish.viewCount, createdAt: wish.createdAt };
+    return { viewCount: wish.viewCount, createdAt: wish.createdAt, expiresAt: wish.expiresAt };
   }
 
   async deleteWish(id: string, deleteToken: string) {

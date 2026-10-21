@@ -42,6 +42,7 @@ export class WishController {
       occasion: wish.occasion,
       content: wish.content,
       createdAt: wish.createdAt,
+      expiresAt: wish.expiresAt,
       deleteToken: wish.deleteToken,
       url: `${baseUrl}/w/${wish.slug}`
     });
@@ -59,7 +60,8 @@ export class WishController {
       templateId: wish.templateId,
       occasion: wish.occasion,
       content: wish.content,
-      createdAt: wish.createdAt
+      createdAt: wish.createdAt,
+      expiresAt: wish.expiresAt,
     });
   }
 
@@ -73,7 +75,7 @@ export class WishController {
     const { slug } = GetWishParamsSchema.parse(request.params);
     const { "x-delete-token": deleteToken } = DeleteWishHeadersSchema.parse(request.headers);
     const stats = await wishService.getWishStats(slug, deleteToken);
-    return reply.send({ viewCount: stats.viewCount, createdAt: stats.createdAt });
+    return reply.send({ viewCount: stats.viewCount, createdAt: stats.createdAt, expiresAt: stats.expiresAt });
   }
 
   async deleteWish(request: FastifyRequest, reply: FastifyReply) {

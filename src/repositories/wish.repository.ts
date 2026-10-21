@@ -42,6 +42,18 @@ export class WishRepository {
     });
   }
 
+  async findExpired(cutoff: Date) {
+    return prisma.wish.findMany({
+      where: { expiresAt: { lt: cutoff } },
+      select: { id: true, photoPublicId: true },
+    });
+  }
+
+  async deleteExpired(cutoff: Date): Promise<number> {
+    const result = await prisma.wish.deleteMany({ where: { expiresAt: { lt: cutoff } } });
+    return result.count;
+  }
+
   async isSlugTaken(slug: string): Promise<boolean> {
     const count = await prisma.wish.count({
       where: { slug },

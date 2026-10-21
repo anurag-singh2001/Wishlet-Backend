@@ -30,6 +30,7 @@ describe("Wish view count", () => {
       content: {},
       viewCount: 5,
       createdAt: new Date("2026-01-01T00:00:00Z"),
+      expiresAt: null,
       updatedAt: new Date(),
     };
     wishRepository.findWishBySlug = (async (slug: string) =>

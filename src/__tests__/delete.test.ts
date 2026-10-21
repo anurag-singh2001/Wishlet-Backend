@@ -34,6 +34,7 @@ describe("Wish deletion requires the creator's delete token", () => {
         content: {},
         viewCount: 0,
         createdAt: new Date(),
+        expiresAt: null,
         updatedAt: new Date(),
       };
       return stored;
