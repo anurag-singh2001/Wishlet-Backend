@@ -57,7 +57,10 @@ describe("Wish expiry", () => {
     }) as typeof wishRepository.deleteWish;
     wishRepository.findExpired = (async (cutoff: Date) => {
       purgeCutoffs.push(cutoff);
-      return [{ id: "a", photoPublicId: "pic-a" }, { id: "b", photoPublicId: null }];
+      return [
+        { id: "a", photoPublicId: "pic-a" },
+        { id: "b", photoPublicId: null },
+      ];
     }) as typeof wishRepository.findExpired;
     wishRepository.deleteExpired = (async (cutoff: Date) => {
       purgeCutoffs.push(cutoff);
@@ -87,14 +90,16 @@ describe("Wish expiry", () => {
     assert.ok(Math.abs(at.getTime() - (before + 24 * HOUR)) < 5000);
   });
 
-  test("expired wish is deleted with its photo and throws 410 EXPIRED", async () => {
+  test("expired wish throws 410 EXPIRED on every read and is left for purgeExpired", async () => {
     stored = makeWish(new Date(Date.now() - 1000), "pic-1");
-    await assert.rejects(
-      () => wishService.getWishBySlug("birthday-abcd1234"),
-      (e: unknown) => e instanceof ApiError && e.statusCode === 410 && e.errorCode === "EXPIRED",
-    );
-    assert.deepStrictEqual(deleted, ["wish-id"]);
-    assert.deepStrictEqual(images, ["pic-1"]);
+    for (let i = 0; i < 2; i++) {
+      await assert.rejects(
+        () => wishService.getWishBySlug("birthday-abcd1234"),
+        (e: unknown) => e instanceof ApiError && e.statusCode === 410 && e.errorCode === "EXPIRED",
+      );
+    }
+    assert.deepStrictEqual(deleted, []);
+    assert.deepStrictEqual(images, []);
   });
 
   test("recordView on expired wish throws 410", async () => {

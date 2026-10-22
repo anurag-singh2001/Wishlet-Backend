@@ -23,16 +23,16 @@ export class WishService {
 
     // Extract optional photoUrl & photoPublicId from content payload if provided
     const contentObj = (data.content || {}) as Record<string, unknown>;
-    const photoUrl = typeof contentObj["photoUrl"] === "string" 
-      ? contentObj["photoUrl"] 
-      : Array.isArray(contentObj["photos"]) && typeof contentObj["photos"][0] === "string"
-        ? contentObj["photos"][0]
-        : null;
+    const photoUrl =
+      typeof contentObj["photoUrl"] === "string"
+        ? contentObj["photoUrl"]
+        : Array.isArray(contentObj["photos"]) && typeof contentObj["photos"][0] === "string"
+          ? contentObj["photos"][0]
+          : null;
 
-    const photoPublicId = typeof contentObj["photoPublicId"] === "string"
-      ? contentObj["photoPublicId"]
-      : null;
-    
+    const photoPublicId =
+      typeof contentObj["photoPublicId"] === "string" ? contentObj["photoPublicId"] : null;
+
     // Returned once to the creator; only its hash is stored.
     const deleteToken = crypto.randomBytes(24).toString("base64url");
     const deleteTokenHash = hashDeleteToken(deleteToken);
@@ -42,7 +42,7 @@ export class WishService {
       const cleanOccasion = data.occasion.toLowerCase().replace(/[^a-z0-9]/g, "");
       const prefix = cleanOccasion.length > 0 ? cleanOccasion : "wish";
       const slug = `${prefix}-${randomId}`;
-      
+
       try {
         const created = await wishRepository.createWish({
           templateId: data.templateId,
@@ -54,13 +54,17 @@ export class WishService {
           content: data.content as Prisma.InputJsonValue,
           slug,
         });
-        
+
         void this.purgeExpired().catch((err: unknown) => console.error("purgeExpired failed", err));
         return { ...created, deleteToken };
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
           if (i === MAX_RETRIES - 1) {
-            throw new ApiError(500, "SLUG_GENERATION_FAILED", "Failed to generate a unique URL. Please try again.");
+            throw new ApiError(
+              500,
+              "SLUG_GENERATION_FAILED",
+              "Failed to generate a unique URL. Please try again.",
+            );
           }
           continue;
         }
@@ -79,18 +83,13 @@ export class WishService {
     return wish;
   }
 
-  private async rejectIfExpired(wish: {
-    id: string;
-    photoPublicId: string | null;
-    expiresAt: Date | null;
-  }): Promise<void> {
+  /**
+   * Expired wishes answer 410 on every read; purgeExpired() deletes them later. Deleting on
+   * read would turn the recipient's own request into a 404, because the page's server-side
+   * metadata fetch runs first.
+   */
+  private async rejectIfExpired(wish: { expiresAt: Date | null }): Promise<void> {
     if (!wish.expiresAt || wish.expiresAt.getTime() >= Date.now()) return;
-    try {
-      if (wish.photoPublicId) await storageService.deleteImage(wish.photoPublicId);
-      await wishRepository.deleteWish(wish.id);
-    } catch (err) {
-      console.error("Failed to delete expired wish", wish.id, err);
-    }
     throw new ApiError(410, "EXPIRED", "This wish has expired.");
   }
 
@@ -141,12 +140,15 @@ export class WishService {
   }
 
   async deleteWish(id: string, deleteToken: string) {
-    const wish = (await wishRepository.findWishById(id)) || (await wishRepository.findWishBySlug(id));
+    const wish =
+      (await wishRepository.findWishById(id)) || (await wishRepository.findWishBySlug(id));
     this.assertDeleteToken(wish, deleteToken);
 
     // Delete Cloudinary asset if public ID is present
     const contentObj = (wish.content || {}) as Record<string, unknown>;
-    const publicId = wish.photoPublicId || (typeof contentObj["photoPublicId"] === "string" ? contentObj["photoPublicId"] : null);
+    const publicId =
+      wish.photoPublicId ||
+      (typeof contentObj["photoPublicId"] === "string" ? contentObj["photoPublicId"] : null);
 
     if (publicId) {
       await storageService.deleteImage(publicId);
