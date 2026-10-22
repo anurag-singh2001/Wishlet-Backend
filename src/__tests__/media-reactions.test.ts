@@ -168,7 +168,7 @@ describe("shared asset deletion", () => {
 
   test("destroys photo (image) and voice (video) when unreferenced", async () => {
     await withToken();
-    await wishService.deleteWish("s", token);
+    await wishService.deleteWish("s", { deleteToken: token });
     assert.deepStrictEqual(destroyed, [
       [PHOTO_ID, "image"],
       [VOICE_ID, "video"],
@@ -178,7 +178,7 @@ describe("shared asset deletion", () => {
   test("keeps assets still referenced by another wish", async () => {
     await withToken();
     refs = 1;
-    await wishService.deleteWish("s", token);
+    await wishService.deleteWish("s", { deleteToken: token });
     assert.deepStrictEqual(destroyed, []);
   });
 });
@@ -252,7 +252,7 @@ describe("reactions", () => {
       deleteTokenHash: createHash("sha256").update("tok").digest("hex"),
       viewCount: 0,
     };
-    const stats = await wishService.getWishStats("s", "tok");
+    const stats = await wishService.getWishStats("s", { deleteToken: "tok" });
     assert.deepStrictEqual(stats.reactions, { heart: 2, moved: 0, party: 0, laugh: 0 });
     assert.strictEqual(stats.reactionsEnabled, false);
   });
@@ -268,9 +268,12 @@ describe("reactions", () => {
     wishRepository.updateContent = (async (_id: string, c: unknown) => {
       saved = c;
     }) as unknown as typeof wishRepository.updateContent;
-    await assert.rejects(wishService.updateSettings("s", "bad", false), code(403, "FORBIDDEN"));
+    await assert.rejects(
+      wishService.updateSettings("s", { deleteToken: "bad" }, false),
+      code(403, "FORBIDDEN"),
+    );
     assert.strictEqual(saved, null);
-    assert.deepStrictEqual(await wishService.updateSettings("s", "tok", false), {
+    assert.deepStrictEqual(await wishService.updateSettings("s", { deleteToken: "tok" }, false), {
       reactionsEnabled: false,
     });
     assert.deepStrictEqual(saved, { message: "hi", reactionsEnabled: false });

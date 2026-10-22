@@ -21,7 +21,8 @@ describe("Wish view count", () => {
   let stored: WishRecord | null;
 
   beforeEach(() => {
-    reactionRepository.countByReaction = (async () => ({})) as typeof reactionRepository.countByReaction;
+    reactionRepository.countByReaction =
+      (async () => ({})) as typeof reactionRepository.countByReaction;
     stored = {
       id: "wish-id",
       slug: "birthday-abcd1234",
@@ -30,6 +31,7 @@ describe("Wish view count", () => {
       photoUrl: null,
       photoPublicId: null,
       deleteTokenHash: crypto.createHash("sha256").update(TOKEN).digest("hex"),
+      ownerId: null,
       content: {},
       viewCount: 5,
       createdAt: new Date("2026-01-01T00:00:00Z"),
@@ -68,15 +70,21 @@ describe("Wish view count", () => {
   });
 
   test("stats rejects a wrong token", async () => {
-    await assert.rejects(wishService.getWishStats("birthday-abcd1234", "bad"), assertStatus(403));
+    await assert.rejects(
+      wishService.getWishStats("birthday-abcd1234", { deleteToken: "bad" }),
+      assertStatus(403),
+    );
   });
 
   test("stats 404s for an unknown wish", async () => {
-    await assert.rejects(wishService.getWishStats("nope", TOKEN), assertStatus(404));
+    await assert.rejects(
+      wishService.getWishStats("nope", { deleteToken: TOKEN }),
+      assertStatus(404),
+    );
   });
 
   test("stats returns the count with a good token", async () => {
-    const stats = await wishService.getWishStats("birthday-abcd1234", TOKEN);
+    const stats = await wishService.getWishStats("birthday-abcd1234", { deleteToken: TOKEN });
     assert.strictEqual(stats.viewCount, 5);
     assert.deepStrictEqual(stats.createdAt, stored?.createdAt);
   });

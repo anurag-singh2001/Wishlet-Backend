@@ -24,10 +24,24 @@ model Wish {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   reactions       Reaction[]
+  ownerId         String?
+  owner           User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
+  @@index([ownerId])
   @@index([expiresAt])
   @@index([slug])
   @@index([occasion])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  googleSub String   @unique
+  email     String
+  name      String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  wishes    Wish[]
 }
 
 model Reaction {

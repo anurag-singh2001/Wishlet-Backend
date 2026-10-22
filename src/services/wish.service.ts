@@ -8,20 +8,16 @@ import { ApiError } from "../plugins/error-handler.js";
 import { env } from "../config/env.js";
 import { Prisma } from "@prisma/client";
 import crypto from "node:crypto";
+import { hashDeleteToken, isValidDeleteToken } from "../utils/delete-token.js";
 
-function hashDeleteToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
-
-function isValidDeleteToken(token: string, storedHash: string | null): boolean {
-  if (!storedHash) return false;
-  const given = Buffer.from(hashDeleteToken(token), "hex");
-  const stored = Buffer.from(storedHash, "hex");
-  return given.length === stored.length && crypto.timingSafeEqual(given, stored);
+/** Proof of ownership: the creator's delete token and/or the signed-in owner's user id. */
+export interface OwnerAccess {
+  deleteToken?: string;
+  userId?: string;
 }
 
 export class WishService {
-  async createWish(data: CreateWishInput) {
+  async createWish(data: CreateWishInput, ownerId?: string) {
     const MAX_RETRIES = 3;
 
     const { content, photoUrl, photoPublicId } = await mediaService.sanitize(
@@ -45,6 +41,7 @@ export class WishService {
           photoUrl,
           photoPublicId,
           deleteTokenHash,
+          ...(ownerId ? { owner: { connect: { id: ownerId } } } : {}),
           expiresAt: new Date(Date.now() + env.WISH_TTL_HOURS * 3600_000),
           content: content as Prisma.InputJsonValue,
           slug,
@@ -114,14 +111,18 @@ export class WishService {
     return wishRepository.deleteExpired(cutoff);
   }
 
-  private assertDeleteToken<T extends { deleteTokenHash: string | null }>(
+  private assertOwnerAccess<T extends { deleteTokenHash: string | null; ownerId: string | null }>(
     wish: T | null,
-    deleteToken: string,
+    access: OwnerAccess,
   ): asserts wish is T {
     if (!wish) {
       throw new ApiError(404, "NOT_FOUND", "Wish not found");
     }
-    if (!isValidDeleteToken(deleteToken, wish.deleteTokenHash)) {
+    const byToken =
+      access.deleteToken !== undefined &&
+      isValidDeleteToken(access.deleteToken, wish.deleteTokenHash);
+    const byOwner = !!access.userId && wish.ownerId === access.userId;
+    if (!byToken && !byOwner) {
       throw new ApiError(403, "FORBIDDEN", "Invalid delete token");
     }
   }
@@ -139,9 +140,9 @@ export class WishService {
     return viewCount;
   }
 
-  async getWishStats(slug: string, deleteToken: string) {
+  async getWishStats(slug: string, access: OwnerAccess) {
     const wish = await wishRepository.findWishBySlug(slug);
-    this.assertDeleteToken(wish, deleteToken);
+    this.assertOwnerAccess(wish, access);
     return {
       viewCount: wish.viewCount,
       createdAt: wish.createdAt,
@@ -153,20 +154,20 @@ export class WishService {
 
   async updateSettings(
     slug: string,
-    deleteToken: string,
+    access: OwnerAccess,
     reactionsEnabled: boolean,
   ): Promise<{ reactionsEnabled: boolean }> {
     const wish = await wishRepository.findWishBySlug(slug);
-    this.assertDeleteToken(wish, deleteToken);
+    this.assertOwnerAccess(wish, access);
     const content = { ...((wish.content || {}) as Record<string, unknown>), reactionsEnabled };
     await wishRepository.updateContent(wish.id, content as Prisma.InputJsonValue);
     return { reactionsEnabled };
   }
 
-  async deleteWish(id: string, deleteToken: string) {
+  async deleteWish(id: string, access: OwnerAccess) {
     const wish =
       (await wishRepository.findWishById(id)) || (await wishRepository.findWishBySlug(id));
-    this.assertDeleteToken(wish, deleteToken);
+    this.assertOwnerAccess(wish, access);
     await this.destroyMedia(wish, [wish.id]);
     return wishRepository.deleteWish(wish.id);
   }

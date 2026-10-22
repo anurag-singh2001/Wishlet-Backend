@@ -31,6 +31,7 @@ describe("Wish deletion requires the creator's delete token", () => {
         photoUrl: null,
         photoPublicId: null,
         deleteTokenHash: data.deleteTokenHash ?? null,
+        ownerId: null,
         content: {},
         viewCount: 0,
         createdAt: new Date(),
@@ -77,20 +78,26 @@ describe("Wish deletion requires the creator's delete token", () => {
 
   test("deletes with the correct token", async () => {
     const wish = await create();
-    await wishService.deleteWish(wish.slug, wish.deleteToken);
+    await wishService.deleteWish(wish.slug, { deleteToken: wish.deleteToken });
     assert.deepStrictEqual(deleted, ["wish-id"]);
   });
 
   test("rejects a wrong token", async () => {
     const wish = await create();
-    await assert.rejects(wishService.deleteWish(wish.slug, "wrong-token"), assertForbidden);
+    await assert.rejects(
+      wishService.deleteWish(wish.slug, { deleteToken: "wrong-token" }),
+      assertForbidden,
+    );
     assert.deepStrictEqual(deleted, []);
   });
 
   test("rejects deletion of legacy wishes that have no token", async () => {
     const wish = await create();
     if (stored) stored.deleteTokenHash = null;
-    await assert.rejects(wishService.deleteWish(wish.slug, wish.deleteToken), assertForbidden);
+    await assert.rejects(
+      wishService.deleteWish(wish.slug, { deleteToken: wish.deleteToken }),
+      assertForbidden,
+    );
     assert.deepStrictEqual(deleted, []);
   });
 });

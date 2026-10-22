@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
-import { wishService } from "../services/wish.service.js";
+import { wishService, type OwnerAccess } from "../services/wish.service.js";
 import {
   CreateWishSchema,
   DeleteWishHeadersSchema,
@@ -11,6 +11,14 @@ import { mediaService } from "../services/media.service.js";
 import { reactionService } from "../services/reaction.service.js";
 import { env } from "../config/env.js";
 import { resolvePublicBaseUrl } from "../utils/public-url.js";
+
+/** Delete token header and/or session; with neither, the missing header is a 400. */
+function ownerAccess(request: FastifyRequest): OwnerAccess {
+  const userId = request.user?.id;
+  if (userId && request.headers["x-delete-token"] === undefined) return { userId };
+  const { "x-delete-token": deleteToken } = DeleteWishHeadersSchema.parse(request.headers);
+  return { deleteToken, userId };
+}
 
 export class WishController {
   async getRootInfo(_request: FastifyRequest, reply: FastifyReply) {
@@ -27,10 +35,10 @@ export class WishController {
   async createWish(request: FastifyRequest, reply: FastifyReply) {
     // Validate request body
     const data = CreateWishSchema.parse(request.body);
-    
+
     // Call service
-    const wish = await wishService.createWish(data);
-    
+    const wish = await wishService.createWish(data, request.user?.id);
+
     const baseUrl = resolvePublicBaseUrl({
       frontendUrl: env.FRONTEND_URL,
       corsOrigin: env.CORS_ORIGIN,
@@ -48,17 +56,17 @@ export class WishController {
       createdAt: wish.createdAt,
       expiresAt: wish.expiresAt,
       deleteToken: wish.deleteToken,
-      url: `${baseUrl}/w/${wish.slug}`
+      url: `${baseUrl}/w/${wish.slug}`,
     });
   }
 
   async getWishBySlug(request: FastifyRequest, reply: FastifyReply) {
     // Validate path params
     const { slug } = GetWishParamsSchema.parse(request.params);
-    
+
     // Fetch wish
     const wish = await wishService.getWishBySlug(slug);
-    
+
     return reply.send({
       slug: wish.slug,
       templateId: wish.templateId,
@@ -77,8 +85,7 @@ export class WishController {
 
   async getWishStats(request: FastifyRequest, reply: FastifyReply) {
     const { slug } = GetWishParamsSchema.parse(request.params);
-    const { "x-delete-token": deleteToken } = DeleteWishHeadersSchema.parse(request.headers);
-    const stats = await wishService.getWishStats(slug, deleteToken);
+    const stats = await wishService.getWishStats(slug, ownerAccess(request));
     return reply.send(stats);
   }
 
@@ -90,15 +97,14 @@ export class WishController {
 
   async updateSettings(request: FastifyRequest, reply: FastifyReply) {
     const { slug } = GetWishParamsSchema.parse(request.params);
-    const { "x-delete-token": deleteToken } = DeleteWishHeadersSchema.parse(request.headers);
+    const access = ownerAccess(request);
     const { reactionsEnabled } = SettingsBodySchema.parse(request.body);
-    return reply.send(await wishService.updateSettings(slug, deleteToken, reactionsEnabled));
+    return reply.send(await wishService.updateSettings(slug, access, reactionsEnabled));
   }
 
   async deleteWish(request: FastifyRequest, reply: FastifyReply) {
     const { slug: id } = GetWishParamsSchema.parse(request.params);
-    const { "x-delete-token": deleteToken } = DeleteWishHeadersSchema.parse(request.headers);
-    await wishService.deleteWish(id, deleteToken);
+    await wishService.deleteWish(id, ownerAccess(request));
 
     return reply.send({
       success: true,

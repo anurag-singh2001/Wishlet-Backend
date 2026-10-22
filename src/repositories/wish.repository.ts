@@ -72,6 +72,24 @@ export class WishRepository {
     });
   }
 
+  /** Non-expired wishes owned by the user, newest first. */
+  async findOwnedActive(ownerId: string, now: Date) {
+    return prisma.wish.findMany({
+      where: { ownerId, OR: [{ expiresAt: null }, { expiresAt: { gte: now } }] },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+  }
+
+  /** Sets the owner only while the wish is unowned. Returns whether it was claimed. */
+  async claimOwner(id: string, ownerId: string): Promise<boolean> {
+    const result = await prisma.wish.updateMany({
+      where: { id, ownerId: null },
+      data: { ownerId },
+    });
+    return result.count > 0;
+  }
+
   async isSlugTaken(slug: string): Promise<boolean> {
     const count = await prisma.wish.count({
       where: { slug },

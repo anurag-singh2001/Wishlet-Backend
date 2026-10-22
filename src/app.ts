@@ -6,6 +6,8 @@ import { env } from "./config/env.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { wishRoutes } from "./routes/wish.routes.js";
 import { templateRoutes } from "./routes/template.routes.js";
+import { authRoutes } from "./routes/auth.routes.js";
+import { registerAuth } from "./plugins/auth.js";
 import { uploadRoutes } from "./routes/upload.routes.js";
 import { ApiError, setupErrorHandler } from "./plugins/error-handler.js";
 
@@ -20,13 +22,18 @@ export async function buildApp() {
 
   // --- Setup Error Handler ---
   setupErrorHandler(app);
+  await registerAuth(app);
 
   await app.register(rateLimit, {
     global: true,
     max: 100,
     timeWindow: "1 minute",
     errorResponseBuilder: () =>
-      new ApiError(429, "RATE_LIMITED", "Too many requests. Please slow down and try again shortly."),
+      new ApiError(
+        429,
+        "RATE_LIMITED",
+        "Too many requests. Please slow down and try again shortly.",
+      ),
   });
 
   await app.register(cors, {
@@ -34,8 +41,7 @@ export async function buildApp() {
       if (!origin) return cb(null, true);
       if (env.CORS_ORIGIN === "*") return cb(null, true);
 
-      const allowedOrigins = env.CORS_ORIGIN
-        .split(",")
+      const allowedOrigins = env.CORS_ORIGIN.split(",")
         .map((o) => o.trim().replace(/\/+$/, ""))
         .filter(Boolean);
 
@@ -52,7 +58,13 @@ export async function buildApp() {
       cb(new Error(`Not allowed by CORS: ${origin}`), false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "X-Delete-Token"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "X-Delete-Token",
+    ],
     credentials: true,
   });
   await app.register(multipart, {
@@ -66,6 +78,7 @@ export async function buildApp() {
   await app.register(wishRoutes, { prefix: "/api/v1/wishes" });
   await app.register(templateRoutes, { prefix: "/api/v1/templates" });
   await app.register(uploadRoutes, { prefix: "/api/v1/uploads" });
+  await app.register(authRoutes, { prefix: "/api/v1" });
 
   return app;
 }

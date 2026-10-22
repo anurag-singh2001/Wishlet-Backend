@@ -34,6 +34,7 @@ describe("Wish expiry", () => {
     photoUrl: null,
     photoPublicId,
     deleteTokenHash: null,
+    ownerId: null,
     content: {},
     viewCount: 0,
     expiresAt,
@@ -63,7 +64,8 @@ describe("Wish expiry", () => {
         { id: "b", photoPublicId: null, content: {} },
       ];
     }) as typeof wishRepository.findExpired;
-    wishRepository.countOtherReferences = (async () => 0) as typeof wishRepository.countOtherReferences;
+    wishRepository.countOtherReferences = (async () =>
+      0) as typeof wishRepository.countOtherReferences;
     wishRepository.deleteExpired = (async (cutoff: Date) => {
       purgeCutoffs.push(cutoff);
       return 2;
