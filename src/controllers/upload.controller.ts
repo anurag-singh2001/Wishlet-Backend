@@ -2,20 +2,19 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import { storageService } from "../services/storage.service.js";
 import { UploadSignatureBodySchema } from "../schemas/wish.schema.js";
 import { ApiError } from "../plugins/error-handler.js";
+import { requireUser } from "../plugins/auth.js";
 
-export async function getUploadSignatureHandler(
-  request: FastifyRequest,
-  reply: FastifyReply
-) {
+const UPLOAD_AUTH_MESSAGE = "Sign in to create a wish.";
+
+export async function getUploadSignatureHandler(request: FastifyRequest, reply: FastifyReply) {
+  requireUser(request, UPLOAD_AUTH_MESSAGE);
   const { kind } = UploadSignatureBodySchema.parse(request.body ?? {});
   const signatureData = storageService.getUploadSignature(kind);
   return reply.send(signatureData);
 }
 
-export async function uploadImageHandler(
-  request: FastifyRequest,
-  reply: FastifyReply
-) {
+export async function uploadImageHandler(request: FastifyRequest, reply: FastifyReply) {
+  requireUser(request, UPLOAD_AUTH_MESSAGE);
   const data = await request.file({
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB limit
@@ -31,12 +30,12 @@ export async function uploadImageHandler(
     throw new ApiError(
       415,
       "UNSUPPORTED_TYPE",
-      "File type not allowed. Please upload JPEG, PNG, or WebP."
+      "File type not allowed. Please upload JPEG, PNG, or WebP.",
     );
   }
 
   const buffer = await data.toBuffer();
-  
+
   const result = await storageService.uploadImage(buffer, data.filename, data.mimetype);
 
   return reply.status(201).send({

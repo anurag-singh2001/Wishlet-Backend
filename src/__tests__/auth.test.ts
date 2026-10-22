@@ -228,12 +228,16 @@ describe("auth and ownership", () => {
     assert.strictEqual(w?.["viewCount"], 3);
   });
 
-  test("create with a session sets the owner; without one it does not", async () => {
+  test("create requires a session and sets the owner", async () => {
     reset();
     const payload = { templateId: "birthday-minimal", occasion: "birthday", content: {} };
     const guest = await app.inject({ method: "POST", url: "/api/v1/wishes", payload });
-    assert.strictEqual(guest.statusCode, 201);
-    assert.strictEqual(created?.["owner"], undefined);
+    assert.strictEqual(guest.statusCode, 401);
+    assert.deepStrictEqual(guest.json(), {
+      error: "UNAUTHORIZED",
+      message: "Sign in to create a wish.",
+    });
+    assert.strictEqual(created, null);
     const mine = await app.inject({
       method: "POST",
       url: "/api/v1/wishes",
@@ -242,6 +246,20 @@ describe("auth and ownership", () => {
     });
     assert.strictEqual(mine.statusCode, 201);
     assert.deepStrictEqual(created?.["owner"], { connect: { id: "u1" } });
+    assert.ok((mine.json() as { deleteToken?: string }).deleteToken);
+  });
+
+  test("upload endpoints require a session", async () => {
+    reset();
+    for (const [method, url] of [
+      ["POST", "/api/v1/uploads/signature"],
+      ["GET", "/api/v1/uploads/signature"],
+      ["POST", "/api/v1/uploads/image"],
+    ] as const) {
+      const res = await app.inject({ method, url });
+      assert.strictEqual(res.statusCode, 401, `${method} ${url}`);
+      assert.strictEqual((res.json() as { error: string }).error, "UNAUTHORIZED");
+    }
   });
 
   test("claim attaches only unowned wishes with a valid token", async () => {

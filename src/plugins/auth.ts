@@ -19,7 +19,10 @@ export async function registerAuth(app: FastifyInstance): Promise<void> {
   });
 }
 
-export function requireUser(request: FastifyRequest): { id: string } {
-  if (!request.user) throw new ApiError(401, "UNAUTHORIZED", "Sign in required.");
+export function requireUser(
+  request: FastifyRequest,
+  message = "Sign in required.",
+): { id: string } {
+  if (!request.user) throw new ApiError(401, "UNAUTHORIZED", message);
   return request.user;
 }
