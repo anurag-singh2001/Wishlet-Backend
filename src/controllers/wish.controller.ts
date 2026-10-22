@@ -4,7 +4,11 @@ import {
   CreateWishSchema,
   DeleteWishHeadersSchema,
   GetWishParamsSchema,
+  ReactBodySchema,
+  SettingsBodySchema,
 } from "../schemas/wish.schema.js";
+import { mediaService } from "../services/media.service.js";
+import { reactionService } from "../services/reaction.service.js";
 import { env } from "../config/env.js";
 import { resolvePublicBaseUrl } from "../utils/public-url.js";
 
@@ -40,7 +44,7 @@ export class WishController {
       slug: wish.slug,
       templateId: wish.templateId,
       occasion: wish.occasion,
-      content: wish.content,
+      content: mediaService.stripPrivate(wish.content),
       createdAt: wish.createdAt,
       expiresAt: wish.expiresAt,
       deleteToken: wish.deleteToken,
@@ -59,7 +63,7 @@ export class WishController {
       slug: wish.slug,
       templateId: wish.templateId,
       occasion: wish.occasion,
-      content: wish.content,
+      content: mediaService.stripPrivate(wish.content),
       createdAt: wish.createdAt,
       expiresAt: wish.expiresAt,
     });
@@ -75,7 +79,20 @@ export class WishController {
     const { slug } = GetWishParamsSchema.parse(request.params);
     const { "x-delete-token": deleteToken } = DeleteWishHeadersSchema.parse(request.headers);
     const stats = await wishService.getWishStats(slug, deleteToken);
-    return reply.send({ viewCount: stats.viewCount, createdAt: stats.createdAt, expiresAt: stats.expiresAt });
+    return reply.send(stats);
+  }
+
+  async react(request: FastifyRequest, reply: FastifyReply) {
+    const { slug } = GetWishParamsSchema.parse(request.params);
+    const { reaction, voterId } = ReactBodySchema.parse(request.body);
+    return reply.send(await reactionService.react(slug, reaction, voterId));
+  }
+
+  async updateSettings(request: FastifyRequest, reply: FastifyReply) {
+    const { slug } = GetWishParamsSchema.parse(request.params);
+    const { "x-delete-token": deleteToken } = DeleteWishHeadersSchema.parse(request.headers);
+    const { reactionsEnabled } = SettingsBodySchema.parse(request.body);
+    return reply.send(await wishService.updateSettings(slug, deleteToken, reactionsEnabled));
   }
 
   async deleteWish(request: FastifyRequest, reply: FastifyReply) {

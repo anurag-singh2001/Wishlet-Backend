@@ -1,12 +1,14 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { storageService } from "../services/storage.service.js";
+import { UploadSignatureBodySchema } from "../schemas/wish.schema.js";
 import { ApiError } from "../plugins/error-handler.js";
 
 export async function getUploadSignatureHandler(
-  _request: FastifyRequest,
+  request: FastifyRequest,
   reply: FastifyReply
 ) {
-  const signatureData = storageService.getUploadSignature();
+  const { kind } = UploadSignatureBodySchema.parse(request.body ?? {});
+  const signatureData = storageService.getUploadSignature(kind);
   return reply.send(signatureData);
 }
 

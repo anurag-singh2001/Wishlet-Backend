@@ -14,7 +14,7 @@ describe("Wish deletion requires the creator's delete token", () => {
     findWishById: wishRepository.findWishById,
     findWishBySlug: wishRepository.findWishBySlug,
     deleteWish: wishRepository.deleteWish,
-    deleteImage: storageService.deleteImage,
+    deleteMedia: storageService.deleteMedia,
   };
   let stored: WishRecord | null;
   let deleted: string[];
@@ -45,7 +45,7 @@ describe("Wish deletion requires the creator's delete token", () => {
       deleted.push(id);
       return stored;
     }) as typeof wishRepository.deleteWish;
-    storageService.deleteImage = (async () => true) as typeof storageService.deleteImage;
+    storageService.deleteMedia = (async () => true) as typeof storageService.deleteMedia;
   });
 
   afterEach(() => {
@@ -55,7 +55,7 @@ describe("Wish deletion requires the creator's delete token", () => {
       findWishBySlug: original.findWishBySlug,
       deleteWish: original.deleteWish,
     });
-    storageService.deleteImage = original.deleteImage;
+    storageService.deleteMedia = original.deleteMedia;
   });
 
   const create = () =>

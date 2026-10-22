@@ -17,7 +17,8 @@ describe("Wish expiry", () => {
     deleteWish: wishRepository.deleteWish,
     findExpired: wishRepository.findExpired,
     deleteExpired: wishRepository.deleteExpired,
-    deleteImage: storageService.deleteImage,
+    countOtherReferences: wishRepository.countOtherReferences,
+    deleteMedia: storageService.deleteMedia,
   };
   let stored: WishRecord | null;
   let deleted: string[];
@@ -58,18 +59,19 @@ describe("Wish expiry", () => {
     wishRepository.findExpired = (async (cutoff: Date) => {
       purgeCutoffs.push(cutoff);
       return [
-        { id: "a", photoPublicId: "pic-a" },
-        { id: "b", photoPublicId: null },
+        { id: "a", photoPublicId: "pic-a", content: {} },
+        { id: "b", photoPublicId: null, content: {} },
       ];
     }) as typeof wishRepository.findExpired;
+    wishRepository.countOtherReferences = (async () => 0) as typeof wishRepository.countOtherReferences;
     wishRepository.deleteExpired = (async (cutoff: Date) => {
       purgeCutoffs.push(cutoff);
       return 2;
     }) as typeof wishRepository.deleteExpired;
-    storageService.deleteImage = (async (id: string) => {
+    storageService.deleteMedia = (async (id: string) => {
       images.push(id);
       return true;
-    }) as typeof storageService.deleteImage;
+    }) as typeof storageService.deleteMedia;
   });
 
   afterEach(() => {
@@ -79,8 +81,9 @@ describe("Wish expiry", () => {
       deleteWish: original.deleteWish,
       findExpired: original.findExpired,
       deleteExpired: original.deleteExpired,
+      countOtherReferences: original.countOtherReferences,
     });
-    storageService.deleteImage = original.deleteImage;
+    storageService.deleteMedia = original.deleteMedia;
   });
 
   test("create sets expiresAt about 24h ahead", async () => {

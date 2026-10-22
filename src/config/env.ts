@@ -12,6 +12,7 @@ export interface Env {
   CLOUDINARY_API_KEY: string;
   CLOUDINARY_API_SECRET: string;
   WISH_TTL_HOURS: number;
+  REACTION_SALT: string;
 }
 
 function requireEnv(key: string): string {
@@ -27,6 +28,12 @@ function parsePositive(raw: string | undefined, fallback: number): number {
   return raw && Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+const DEV_REACTION_SALT = "wishlet-dev-reaction-salt";
+const reactionSalt = process.env["REACTION_SALT"];
+if (!reactionSalt && process.env["NODE_ENV"] === "production") {
+  console.warn("REACTION_SALT is not set; using an insecure default. Set it on the host.");
+}
+
 export const env: Env = {
   PORT: parseInt(process.env["PORT"] ?? "3001", 10),
   HOST: process.env["HOST"] ?? "0.0.0.0",
@@ -39,5 +46,6 @@ export const env: Env = {
   CLOUDINARY_API_KEY: process.env["CLOUDINARY_API_KEY"] ?? "",
   CLOUDINARY_API_SECRET: process.env["CLOUDINARY_API_SECRET"] ?? "",
   WISH_TTL_HOURS: parsePositive(process.env["WISH_TTL_HOURS"], 24),
+  REACTION_SALT: reactionSalt || DEV_REACTION_SALT,
 };
 

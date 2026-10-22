@@ -1,5 +1,8 @@
 import { wishRepository } from "../repositories/wish.repository.js";
 import { storageService } from "./storage.service.js";
+import { mediaService } from "./media.service.js";
+import { areReactionsEnabled, reactionService } from "./reaction.service.js";
+import { rejectIfExpired } from "../utils/expiry.js";
 import type { CreateWishInput } from "../schemas/wish.schema.js";
 import { ApiError } from "../plugins/error-handler.js";
 import { env } from "../config/env.js";
@@ -21,17 +24,9 @@ export class WishService {
   async createWish(data: CreateWishInput) {
     const MAX_RETRIES = 3;
 
-    // Extract optional photoUrl & photoPublicId from content payload if provided
-    const contentObj = (data.content || {}) as Record<string, unknown>;
-    const photoUrl =
-      typeof contentObj["photoUrl"] === "string"
-        ? contentObj["photoUrl"]
-        : Array.isArray(contentObj["photos"]) && typeof contentObj["photos"][0] === "string"
-          ? contentObj["photos"][0]
-          : null;
-
-    const photoPublicId =
-      typeof contentObj["photoPublicId"] === "string" ? contentObj["photoPublicId"] : null;
+    const { content, photoUrl, photoPublicId } = await mediaService.sanitize(
+      (data.content || {}) as Record<string, unknown>,
+    );
 
     // Returned once to the creator; only its hash is stored.
     const deleteToken = crypto.randomBytes(24).toString("base64url");
@@ -51,7 +46,7 @@ export class WishService {
           photoPublicId,
           deleteTokenHash,
           expiresAt: new Date(Date.now() + env.WISH_TTL_HOURS * 3600_000),
-          content: data.content as Prisma.InputJsonValue,
+          content: content as Prisma.InputJsonValue,
           slug,
         });
 
@@ -79,31 +74,42 @@ export class WishService {
     if (!wish) {
       throw new ApiError(404, "NOT_FOUND", "Wish not found");
     }
-    await this.rejectIfExpired(wish);
+    rejectIfExpired(wish);
     return wish;
   }
 
-  /**
-   * Expired wishes answer 410 on every read; purgeExpired() deletes them later. Deleting on
-   * read would turn the recipient's own request into a 404, because the page's server-side
-   * metadata fetch runs first.
-   */
-  private async rejectIfExpired(wish: { expiresAt: Date | null }): Promise<void> {
-    if (!wish.expiresAt || wish.expiresAt.getTime() >= Date.now()) return;
-    throw new ApiError(410, "EXPIRED", "This wish has expired.");
+  /** Destroys a wish's photo and voice assets unless a wish outside `excludeIds` still uses them. */
+  private async destroyMedia(
+    wish: { id: string; photoPublicId: string | null; content: unknown },
+    excludeIds: string[],
+  ): Promise<void> {
+    const content = (wish.content || {}) as Record<string, unknown>;
+    const photoId =
+      wish.photoPublicId ||
+      (typeof content["photoPublicId"] === "string" ? content["photoPublicId"] : null);
+    const voiceId = typeof content["voicePublicId"] === "string" ? content["voicePublicId"] : null;
+    const assets: [string | null, "image" | "video"][] = [
+      [photoId, "image"],
+      [voiceId, "video"],
+    ];
+    for (const [publicId, type] of assets) {
+      if (!publicId) continue;
+      try {
+        if ((await wishRepository.countOtherReferences(publicId, excludeIds)) > 0) continue;
+        await storageService.deleteMedia(publicId, type);
+      } catch (err) {
+        console.error("Failed to delete wish media", publicId, err);
+      }
+    }
   }
 
-  /** Deletes all expired wishes and their photos (best-effort). Returns the number removed. */
+  /** Deletes all expired wishes and their media (best-effort). Returns the number removed. */
   async purgeExpired(): Promise<number> {
     const cutoff = new Date();
     const expired = await wishRepository.findExpired(cutoff);
-    for (const { photoPublicId } of expired) {
-      if (!photoPublicId) continue;
-      try {
-        await storageService.deleteImage(photoPublicId);
-      } catch (err) {
-        console.error("Failed to delete expired wish photo", photoPublicId, err);
-      }
+    const expiredIds = expired.map((w) => w.id);
+    for (const wish of expired) {
+      await this.destroyMedia(wish, expiredIds);
     }
     return wishRepository.deleteExpired(cutoff);
   }
@@ -125,7 +131,7 @@ export class WishService {
     if (!wish) {
       throw new ApiError(404, "NOT_FOUND", "Wish not found");
     }
-    await this.rejectIfExpired(wish);
+    rejectIfExpired(wish);
     const viewCount = await wishRepository.incrementViewCount(slug);
     if (viewCount === null) {
       throw new ApiError(404, "NOT_FOUND", "Wish not found");
@@ -136,24 +142,32 @@ export class WishService {
   async getWishStats(slug: string, deleteToken: string) {
     const wish = await wishRepository.findWishBySlug(slug);
     this.assertDeleteToken(wish, deleteToken);
-    return { viewCount: wish.viewCount, createdAt: wish.createdAt, expiresAt: wish.expiresAt };
+    return {
+      viewCount: wish.viewCount,
+      createdAt: wish.createdAt,
+      expiresAt: wish.expiresAt,
+      reactions: await reactionService.getCounts(wish.id),
+      reactionsEnabled: areReactionsEnabled(wish.content),
+    };
+  }
+
+  async updateSettings(
+    slug: string,
+    deleteToken: string,
+    reactionsEnabled: boolean,
+  ): Promise<{ reactionsEnabled: boolean }> {
+    const wish = await wishRepository.findWishBySlug(slug);
+    this.assertDeleteToken(wish, deleteToken);
+    const content = { ...((wish.content || {}) as Record<string, unknown>), reactionsEnabled };
+    await wishRepository.updateContent(wish.id, content as Prisma.InputJsonValue);
+    return { reactionsEnabled };
   }
 
   async deleteWish(id: string, deleteToken: string) {
     const wish =
       (await wishRepository.findWishById(id)) || (await wishRepository.findWishBySlug(id));
     this.assertDeleteToken(wish, deleteToken);
-
-    // Delete Cloudinary asset if public ID is present
-    const contentObj = (wish.content || {}) as Record<string, unknown>;
-    const publicId =
-      wish.photoPublicId ||
-      (typeof contentObj["photoPublicId"] === "string" ? contentObj["photoPublicId"] : null);
-
-    if (publicId) {
-      await storageService.deleteImage(publicId);
-    }
-
+    await this.destroyMedia(wish, [wish.id]);
     return wishRepository.deleteWish(wish.id);
   }
 }

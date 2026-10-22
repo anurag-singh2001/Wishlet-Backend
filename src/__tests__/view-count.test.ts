@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { wishService } from "../services/wish.service.js";
 import { wishController } from "../controllers/wish.controller.js";
 import { wishRepository, WishRepository } from "../repositories/wish.repository.js";
+import { reactionRepository } from "../repositories/reaction.repository.js";
 import { ApiError } from "../plugins/error-handler.js";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
@@ -16,9 +17,11 @@ describe("Wish view count", () => {
     findWishBySlug: wishRepository.findWishBySlug,
     incrementViewCount: wishRepository.incrementViewCount,
   };
+  const originalCount = reactionRepository.countByReaction;
   let stored: WishRecord | null;
 
   beforeEach(() => {
+    reactionRepository.countByReaction = (async () => ({})) as typeof reactionRepository.countByReaction;
     stored = {
       id: "wish-id",
       slug: "birthday-abcd1234",
@@ -44,6 +47,7 @@ describe("Wish view count", () => {
 
   afterEach(() => {
     Object.assign(wishRepository, original);
+    reactionRepository.countByReaction = originalCount;
   });
 
   const assertStatus =

@@ -45,13 +45,31 @@ export class WishRepository {
   async findExpired(cutoff: Date) {
     return prisma.wish.findMany({
       where: { expiresAt: { lt: cutoff } },
-      select: { id: true, photoPublicId: true },
+      select: { id: true, photoPublicId: true, content: true },
     });
   }
 
   async deleteExpired(cutoff: Date): Promise<number> {
     const result = await prisma.wish.deleteMany({ where: { expiresAt: { lt: cutoff } } });
     return result.count;
+  }
+
+  async updateContent(id: string, content: Prisma.InputJsonValue) {
+    return prisma.wish.update({ where: { id }, data: { content } });
+  }
+
+  /** Number of wishes other than `excludeIds` that reference this Cloudinary public id. */
+  async countOtherReferences(publicId: string, excludeIds: string[]): Promise<number> {
+    return prisma.wish.count({
+      where: {
+        id: { notIn: excludeIds },
+        OR: [
+          { photoPublicId: publicId },
+          { content: { path: ["photoPublicId"], equals: publicId } },
+          { content: { path: ["voicePublicId"], equals: publicId } },
+        ],
+      },
+    });
   }
 
   async isSlugTaken(slug: string): Promise<boolean> {

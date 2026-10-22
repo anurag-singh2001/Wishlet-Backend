@@ -23,8 +23,22 @@ model Wish {
   expiresAt       DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  reactions       Reaction[]
 
   @@index([expiresAt])
   @@index([slug])
   @@index([occasion])
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  wishId    String
+  wish      Wish     @relation(fields: [wishId], references: [id], onDelete: Cascade)
+  reaction  String
+  voterHash String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([wishId, voterHash])
+  @@index([wishId])
 }
