@@ -53,11 +53,18 @@ export class MediaService {
     const asset = await storageService.getVoiceAsset(voicePublicId);
     if (!asset) throw invalidVoice("Voice message could not be verified.");
     if (asset.bytes > MAX_VOICE_BYTES) throw invalidVoice("Voice message is too large.");
-    if (asset.duration > MAX_VOICE_SECONDS) throw invalidVoice("Voice message is too long.");
     if (!VOICE_FORMATS.includes(asset.format.toLowerCase())) {
       throw invalidVoice("Voice message format is not supported.");
     }
-    content["voiceDuration"] = Math.round(asset.duration * 10) / 10;
+    // Chrome's WebM recordings have no duration in the file, so Cloudinary reports none. Then
+    // fall back to the length measured by the recorder; the 2 MB cap still bounds the clip.
+    const clientDuration = content["voiceDuration"];
+    const duration =
+      asset.duration ??
+      (typeof clientDuration === "number" && clientDuration > 0 ? clientDuration : null);
+    if (duration === null) throw invalidVoice("Voice message could not be verified.");
+    if (duration > MAX_VOICE_SECONDS) throw invalidVoice("Voice message is too long.");
+    content["voiceDuration"] = Math.round(duration * 10) / 10;
   }
 
   /** Returns a cleaned copy of the content plus the trusted photo fields. */

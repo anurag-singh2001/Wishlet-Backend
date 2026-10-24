@@ -17,7 +17,7 @@ const photoUrl = `https://res.cloudinary.com/${CLOUD}/image/upload/v1/${PHOTO_ID
 const voiceUrl = `https://res.cloudinary.com/${CLOUD}/video/upload/v1/${VOICE_ID}.webm`;
 const VOTER = "5f9f1b0e-6a3e-4f5d-9a6f-0a1b2c3d4e5f";
 
-type Asset = { bytes: number; duration: number; format: string } | null;
+type Asset = { bytes: number; duration: number | null; format: string } | null;
 
 const code = (status: number, errorCode: string) => (e: unknown) =>
   e instanceof ApiError && e.statusCode === status && e.errorCode === errorCode;
@@ -76,6 +76,22 @@ describe("media validation on create", () => {
       voiceDuration: 1,
     });
     assert.strictEqual(r.content["voiceDuration"], 12.3);
+  });
+
+  test("WebM without a Cloudinary duration falls back to the recorder's length", async () => {
+    asset = { bytes: 302654, duration: null, format: "webm" };
+    const ok = await mediaService.sanitize({
+      voiceUrl,
+      voicePublicId: VOICE_ID,
+      voiceDuration: 9.46,
+    });
+    assert.strictEqual(ok.content["voiceDuration"], 9.5);
+    for (const voiceDuration of [undefined, 0, 75, "10"]) {
+      await assert.rejects(
+        mediaService.sanitize({ voiceUrl, voicePublicId: VOICE_ID, voiceDuration }),
+        code(400, "INVALID_VOICE"),
+      );
+    }
   });
 
   test("rejects invalid voice (foreign id, bad url, too long, too big, bad format)", async () => {
