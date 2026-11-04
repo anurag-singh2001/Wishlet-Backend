@@ -9,6 +9,7 @@ import {
 } from "../schemas/wish.schema.js";
 import { mediaService } from "../services/media.service.js";
 import { reactionService } from "../services/reaction.service.js";
+import { creationGuardService } from "../services/creation-guard.service.js";
 import { requireUser } from "../plugins/auth.js";
 import { env } from "../config/env.js";
 import { resolvePublicBaseUrl } from "../utils/public-url.js";
@@ -36,6 +37,7 @@ export class WishController {
   async createWish(request: FastifyRequest, reply: FastifyReply) {
     const user = requireUser(request, "Sign in to create a wish.");
     const data = CreateWishSchema.parse(request.body);
+    await creationGuardService.assertCanCreate(user.id, data.templateId, data.occasion);
     const wish = await wishService.createWish(data, user.id);
 
     const baseUrl = resolvePublicBaseUrl({

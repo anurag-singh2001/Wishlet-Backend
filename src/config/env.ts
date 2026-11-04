@@ -16,6 +16,7 @@ export interface Env {
   GOOGLE_CLIENT_ID: string;
   JWT_SECRET: string;
   AUTH_TOKEN_DAYS: number;
+  ADMIN_EMAILS: string[];
 }
 
 function requireEnv(key: string): string {
@@ -62,4 +63,8 @@ export const env: Env = {
     "1075546711165-5o07m2m1kqjdcmotirkcdg8t96ehe9hr.apps.googleusercontent.com",
   JWT_SECRET: jwtSecret || DEV_JWT_SECRET,
   AUTH_TOKEN_DAYS: parsePositive(process.env["AUTH_TOKEN_DAYS"], 30),
+  ADMIN_EMAILS: (process.env["ADMIN_EMAILS"] ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
 };

@@ -2,19 +2,22 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import { storageService } from "../services/storage.service.js";
 import { UploadSignatureBodySchema } from "../schemas/wish.schema.js";
 import { ApiError } from "../plugins/error-handler.js";
+import { adminAuthService } from "../services/admin-auth.service.js";
 import { requireUser } from "../plugins/auth.js";
 
 const UPLOAD_AUTH_MESSAGE = "Sign in to create a wish.";
 
 export async function getUploadSignatureHandler(request: FastifyRequest, reply: FastifyReply) {
-  requireUser(request, UPLOAD_AUTH_MESSAGE);
+  const user = requireUser(request, UPLOAD_AUTH_MESSAGE);
+  await adminAuthService.assertNotBlocked(user.id);
   const { kind } = UploadSignatureBodySchema.parse(request.body ?? {});
   const signatureData = storageService.getUploadSignature(kind);
   return reply.send(signatureData);
 }
 
 export async function uploadImageHandler(request: FastifyRequest, reply: FastifyReply) {
-  requireUser(request, UPLOAD_AUTH_MESSAGE);
+  const user = requireUser(request, UPLOAD_AUTH_MESSAGE);
+  await adminAuthService.assertNotBlocked(user.id);
   const data = await request.file({
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB limit

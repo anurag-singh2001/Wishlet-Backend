@@ -2,6 +2,7 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import { requireUser } from "../plugins/auth.js";
 import { ClaimBodySchema, GoogleAuthBodySchema } from "../schemas/auth.schema.js";
 import { authService } from "../services/auth.service.js";
+import { adminAuthService } from "../services/admin-auth.service.js";
 import { meService } from "../services/me.service.js";
 
 export class AuthController {
@@ -12,7 +13,8 @@ export class AuthController {
 
   async me(request: FastifyRequest, reply: FastifyReply) {
     const { id } = requireUser(request);
-    return reply.send({ user: await authService.getUser(id) });
+    const user = await authService.getUser(id);
+    return reply.send({ user, isAdmin: adminAuthService.isAdminEmail(user.email) });
   }
 
   async myWishes(request: FastifyRequest, reply: FastifyReply) {

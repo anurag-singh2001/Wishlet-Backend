@@ -7,6 +7,8 @@ import { healthRoutes } from "./routes/health.routes.js";
 import { wishRoutes } from "./routes/wish.routes.js";
 import { templateRoutes } from "./routes/template.routes.js";
 import { authRoutes } from "./routes/auth.routes.js";
+import { adminRoutes } from "./routes/admin.routes.js";
+import { configRoutes } from "./routes/config.routes.js";
 import { registerAuth } from "./plugins/auth.js";
 import { uploadRoutes } from "./routes/upload.routes.js";
 import { ApiError, setupErrorHandler } from "./plugins/error-handler.js";
@@ -78,6 +80,8 @@ export async function buildApp() {
   await app.register(wishRoutes, { prefix: "/api/v1/wishes" });
   await app.register(templateRoutes, { prefix: "/api/v1/templates" });
   await app.register(uploadRoutes, { prefix: "/api/v1/uploads" });
+  await app.register(configRoutes, { prefix: "/api/v1/config" });
+  await app.register(adminRoutes, { prefix: "/api/v1/admin" });
   await app.register(authRoutes, { prefix: "/api/v1" });
 
   return app;

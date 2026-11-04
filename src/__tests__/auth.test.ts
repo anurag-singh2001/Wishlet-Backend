@@ -6,6 +6,7 @@ import assert from "node:assert";
 import type { FastifyInstance } from "fastify";
 import { SignJWT } from "jose";
 import { wishRepository } from "../repositories/wish.repository.js";
+import { settingRepository } from "../repositories/setting.repository.js";
 import { userRepository } from "../repositories/user.repository.js";
 import { reactionRepository } from "../repositories/reaction.repository.js";
 import { authService, type GoogleIdentity } from "../services/auth.service.js";
@@ -65,6 +66,7 @@ describe("auth and ownership", () => {
     counts: reactionRepository.countByReaction,
     verify: authService.verifyGoogleToken,
     deleteMedia: storageService.deleteMedia,
+    getSetting: settingRepository.get,
   };
 
   before(async () => {
@@ -116,6 +118,7 @@ describe("auth and ownership", () => {
     })) as typeof reactionRepository.countByReaction;
     authService.verifyGoogleToken = (async () => google) as typeof authService.verifyGoogleToken;
     storageService.deleteMedia = (async () => true) as typeof storageService.deleteMedia;
+    settingRepository.get = (async () => null) as typeof settingRepository.get;
   });
 
   after(async () => {
@@ -135,6 +138,7 @@ describe("auth and ownership", () => {
     reactionRepository.countByReaction = saved.counts;
     authService.verifyGoogleToken = saved.verify;
     storageService.deleteMedia = saved.deleteMedia;
+    settingRepository.get = saved.getSetting;
   });
 
   const reset = (): void => {

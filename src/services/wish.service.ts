@@ -171,6 +171,14 @@ export class WishService {
     await this.destroyMedia(wish, [wish.id]);
     return wishRepository.deleteWish(wish.id);
   }
+
+  /** Admin delete: no token/owner check, same media cleanup. 404 if missing. */
+  async adminDelete(id: string) {
+    const wish = await wishRepository.findWishById(id);
+    if (!wish) throw new ApiError(404, "NOT_FOUND", "Wish not found");
+    await this.destroyMedia(wish, [wish.id]);
+    return wishRepository.deleteWish(wish.id);
+  }
 }
 
 export const wishService = new WishService();
