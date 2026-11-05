@@ -83,10 +83,10 @@ export const TEMPLATES: CatalogTemplate[] = [
 ];
 
 export const OCCASIONS: CatalogOccasion[] = [
+  { id: "diwali", label: "Diwali", tint: "#FFF0D6" },
   { id: "birthday", label: "Birthday", tint: "#FFF1EC" },
   { id: "anniversary", label: "Anniversary", tint: "#FDEBF3" },
-  { id: "thank-you", label: "Thank You", tint: "#EAF7EF" },
+  { id: "thank-you", label: "Thank you", tint: "#EAF7EF" },
   { id: "congratulations", label: "Congratulations", tint: "#FFF6DC" },
   { id: "sorry", label: "Sorry", tint: "#ECEFFB" },
-  { id: "diwali", label: "Diwali", tint: "#FFF0D6" },
 ];
