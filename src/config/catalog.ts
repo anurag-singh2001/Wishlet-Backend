@@ -94,6 +94,12 @@ export const TEMPLATES: CatalogTemplate[] = [
     occasion: "christmas",
     description: "A twinkling snow globe, falling snow and a little pine under the stars.",
   },
+  {
+    id: "newyear-midnight",
+    name: "Midnight Sparkle",
+    occasion: "newyear",
+    description: "A golden year that pops in under fireworks and rising champagne bubbles.",
+  },
 ];
 
 export const OCCASIONS: CatalogOccasion[] = [
@@ -112,6 +118,14 @@ export const OCCASIONS: CatalogOccasion[] = [
     kind: "festival",
     defaultStartsAt: "2026-12-12T00:00:00.000Z",
     defaultEndsAt: "2026-12-26T23:59:59.000Z",
+  },
+  {
+    id: "newyear",
+    label: "New Year",
+    tint: "#ECEBFA",
+    kind: "festival",
+    defaultStartsAt: "2026-12-27T00:00:00.000Z",
+    defaultEndsAt: "2027-01-03T23:59:59.000Z",
   },
   { id: "birthday", label: "Birthday", tint: "#FFF1EC", ...CORE },
   { id: "anniversary", label: "Anniversary", tint: "#FDEBF3", ...CORE },

@@ -207,4 +207,22 @@ describe("admin portal", () => {
     const after = await siteConfigService.getPublicConfig(new Date("2027-01-02T00:00:00Z"));
     assert.strictEqual(after.activeFestival, null);
   });
+
+  test("New Year follows Christmas without overlap once both are published", async () => {
+    reset();
+    const catalog = await siteConfigService.getCatalog();
+    await siteConfigService.setCatalog({
+      occasions: catalog.occasions.map((o) =>
+        o.id === "christmas" || o.id === "newyear" ? { ...o, enabled: true, festiveLook: true } : o,
+      ),
+    });
+    const xmas = await siteConfigService.getPublicConfig(new Date("2026-12-25T12:00:00Z"));
+    assert.strictEqual(xmas.activeFestival, "christmas");
+    const nye = await siteConfigService.getPublicConfig(new Date("2026-12-31T12:00:00Z"));
+    assert.strictEqual(nye.activeFestival, "newyear");
+    assert.ok(nye.templates.some((t) => t.id === "newyear-midnight"));
+    assert.ok(!nye.occasions.some((o) => o.id === "christmas"));
+    const later = await siteConfigService.getPublicConfig(new Date("2027-01-10T00:00:00Z"));
+    assert.strictEqual(later.activeFestival, null);
+  });
 });
