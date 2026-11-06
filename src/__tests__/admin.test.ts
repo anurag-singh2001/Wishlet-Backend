@@ -189,4 +189,22 @@ describe("admin portal", () => {
     assert.ok(!after.templates.some((t) => t.id === "diwali-diyas"));
     assert.strictEqual(after.activeFestival, null);
   });
+
+  test("Christmas is off by default and goes live on its default dates once published", async () => {
+    reset();
+    const xmasDay = new Date("2026-12-20T00:00:00Z");
+    const off = await siteConfigService.getPublicConfig(xmasDay);
+    assert.ok(!off.occasions.some((o) => o.id === "christmas"));
+    const catalog = await siteConfigService.getCatalog();
+    await siteConfigService.setCatalog({
+      occasions: catalog.occasions.map((o) =>
+        o.id === "christmas" ? { ...o, enabled: true, festiveLook: true } : o,
+      ),
+    });
+    const live = await siteConfigService.getPublicConfig(xmasDay);
+    assert.ok(live.templates.some((t) => t.id === "christmas-snowglobe"));
+    assert.strictEqual(live.activeFestival, "christmas");
+    const after = await siteConfigService.getPublicConfig(new Date("2027-01-02T00:00:00Z"));
+    assert.strictEqual(after.activeFestival, null);
+  });
 });

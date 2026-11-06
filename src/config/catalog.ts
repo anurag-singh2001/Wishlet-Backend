@@ -88,6 +88,12 @@ export const TEMPLATES: CatalogTemplate[] = [
     occasion: "diwali",
     description: "Glowing diyas, a blooming rangoli and soft fireworks in a night sky.",
   },
+  {
+    id: "christmas-snowglobe",
+    name: "Snow Globe",
+    occasion: "christmas",
+    description: "A twinkling snow globe, falling snow and a little pine under the stars.",
+  },
 ];
 
 export const OCCASIONS: CatalogOccasion[] = [
@@ -98,6 +104,14 @@ export const OCCASIONS: CatalogOccasion[] = [
     kind: "festival",
     defaultStartsAt: "2026-11-01T00:00:00.000Z",
     defaultEndsAt: "2026-11-12T23:59:59.000Z",
+  },
+  {
+    id: "christmas",
+    label: "Christmas",
+    tint: "#FBE7EA",
+    kind: "festival",
+    defaultStartsAt: "2026-12-12T00:00:00.000Z",
+    defaultEndsAt: "2026-12-26T23:59:59.000Z",
   },
   { id: "birthday", label: "Birthday", tint: "#FFF1EC", ...CORE },
   { id: "anniversary", label: "Anniversary", tint: "#FDEBF3", ...CORE },
