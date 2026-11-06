@@ -5,11 +5,19 @@ export interface CatalogTemplate {
   description: string;
 }
 
+export type OccasionKind = "core" | "festival";
+
 export interface CatalogOccasion {
   id: string;
   label: string;
   tint: string;
+  kind: OccasionKind;
+  /** Suggested date range for festivals (ISO), used to pre-fill the admin UI. */
+  defaultStartsAt: string | null;
+  defaultEndsAt: string | null;
 }
+
+const CORE = { kind: "core", defaultStartsAt: null, defaultEndsAt: null } as const;
 
 // Hardcoded: templates are frontend components, not DB entities.
 export const TEMPLATES: CatalogTemplate[] = [
@@ -83,10 +91,17 @@ export const TEMPLATES: CatalogTemplate[] = [
 ];
 
 export const OCCASIONS: CatalogOccasion[] = [
-  { id: "diwali", label: "Diwali", tint: "#FFF0D6" },
-  { id: "birthday", label: "Birthday", tint: "#FFF1EC" },
-  { id: "anniversary", label: "Anniversary", tint: "#FDEBF3" },
-  { id: "thank-you", label: "Thank you", tint: "#EAF7EF" },
-  { id: "congratulations", label: "Congratulations", tint: "#FFF6DC" },
-  { id: "sorry", label: "Sorry", tint: "#ECEFFB" },
+  {
+    id: "diwali",
+    label: "Diwali",
+    tint: "#FFF0D6",
+    kind: "festival",
+    defaultStartsAt: "2026-11-01T00:00:00.000Z",
+    defaultEndsAt: "2026-11-12T23:59:59.000Z",
+  },
+  { id: "birthday", label: "Birthday", tint: "#FFF1EC", ...CORE },
+  { id: "anniversary", label: "Anniversary", tint: "#FDEBF3", ...CORE },
+  { id: "thank-you", label: "Thank you", tint: "#EAF7EF", ...CORE },
+  { id: "congratulations", label: "Congratulations", tint: "#FFF6DC", ...CORE },
+  { id: "sorry", label: "Sorry", tint: "#ECEFFB", ...CORE },
 ];

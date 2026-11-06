@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import {
   BrandingSchema,
-  CatalogSchema,
+  CatalogUpdateSchema,
   IdParamsSchema,
   StatsQuerySchema,
   WishListQuerySchema,
@@ -19,7 +19,7 @@ export class AdminController {
     await requireAdmin(request);
     const [branding, catalog] = await Promise.all([
       siteConfigService.getBranding(),
-      siteConfigService.getCatalog(),
+      siteConfigService.getAdminCatalog(new Date()),
     ]);
     return reply.send({ branding, catalog });
   }
@@ -32,8 +32,9 @@ export class AdminController {
 
   async putCatalog(request: FastifyRequest, reply: FastifyReply) {
     await requireAdmin(request);
-    const input = CatalogSchema.parse(request.body);
-    return reply.send(await siteConfigService.setCatalog(input));
+    const input = CatalogUpdateSchema.parse(request.body);
+    await siteConfigService.setCatalog(input);
+    return reply.send(await siteConfigService.getAdminCatalog(new Date()));
   }
 
   async uploadLogo(request: FastifyRequest, reply: FastifyReply) {

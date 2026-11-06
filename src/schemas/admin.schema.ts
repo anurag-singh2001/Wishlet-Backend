@@ -20,20 +20,36 @@ export const BrandingSchema = z.object({
 });
 export type Branding = z.infer<typeof BrandingSchema>;
 
-const OCCASION_IDS = new Set(OCCASIONS.map((o) => o.id));
+const OCCASION_KINDS = new Map(OCCASIONS.map((o) => [o.id, o.kind]));
 const TEMPLATE_IDS = new Set(TEMPLATES.map((t) => t.id));
 
-const OccasionSettingSchema = z.object({
-  id: z.string().refine((id) => OCCASION_IDS.has(id), "Unknown occasion id"),
-  label: z.string().min(1).max(40),
-  tint: HEX,
-  enabled: z.boolean(),
-  order: z.number().int(),
-  startsAt: z.string().datetime().nullable(),
-  endsAt: z.string().datetime().nullable(),
-  badge: BADGE,
-});
+const OccasionSettingSchema = z
+  .object({
+    id: z.string().refine((id) => OCCASION_KINDS.has(id), "Unknown occasion id"),
+    label: z.string().min(1).max(40),
+    tint: HEX,
+    /** Server-owned: always derived from the occasion id; a client value is ignored. */
+    kind: z.enum(["core", "festival"]).optional(),
+    /** Core: visible. Festival: published. */
+    enabled: z.boolean(),
+    order: z.number().int(),
+    festiveLook: z.boolean().default(false),
+    startsAt: z.string().datetime().nullable(),
+    endsAt: z.string().datetime().nullable(),
+    badge: BADGE,
+  })
+  .superRefine((o, ctx) => {
+    if (OCCASION_KINDS.get(o.id) === "core" && (o.startsAt !== null || o.endsAt !== null)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [o.startsAt !== null ? "startsAt" : "endsAt"],
+        message: "Core occasions are always on and cannot have start/end dates.",
+      });
+    }
+  })
+  .transform((o) => ({ ...o, kind: OCCASION_KINDS.get(o.id) ?? "core" }));
 
+/** Templates are no longer editable from the admin UI; kept in stored data only. */
 const TemplateSettingSchema = z.object({
   id: z.string().refine((id) => TEMPLATE_IDS.has(id), "Unknown template id"),
   enabled: z.boolean(),
@@ -42,11 +58,16 @@ const TemplateSettingSchema = z.object({
   badge: BADGE,
 });
 
+/** PUT body. Any `templates` key is ignored (stripped). */
+export const CatalogUpdateSchema = z.object({ occasions: z.array(OccasionSettingSchema) });
+
+/** Stored shape. Old data without kind/festiveLook/templates still loads. */
 export const CatalogSchema = z.object({
   occasions: z.array(OccasionSettingSchema),
-  templates: z.array(TemplateSettingSchema),
+  templates: z.array(TemplateSettingSchema).default([]),
 });
 export type CatalogConfig = z.infer<typeof CatalogSchema>;
+export type CatalogUpdate = z.infer<typeof CatalogUpdateSchema>;
 export type OccasionSetting = z.infer<typeof OccasionSettingSchema>;
 export type TemplateSetting = z.infer<typeof TemplateSettingSchema>;
 

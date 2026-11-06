@@ -6,8 +6,10 @@ import {
   CatalogSchema,
   type Branding,
   type CatalogConfig,
+  type CatalogUpdate,
   type OccasionSetting,
 } from "../schemas/admin.schema.js";
+import { festivalStatus, pickActiveFestival, type FestivalStatus } from "./festival.js";
 
 const BRANDING_KEY = "branding";
 const CATALOG_KEY = "catalog";
@@ -26,11 +28,16 @@ export const DEFAULT_BRANDING: Branding = {
 function defaultCatalog(): CatalogConfig {
   return {
     occasions: OCCASIONS.map((o, order) => ({
-      ...o,
-      enabled: true,
+      id: o.id,
+      label: o.label,
+      tint: o.tint,
+      kind: o.kind,
+      // Core occasions are on; festivals start unpublished with a suggested date range.
+      enabled: o.kind === "core",
       order,
-      startsAt: null,
-      endsAt: null,
+      festiveLook: false,
+      startsAt: o.defaultStartsAt,
+      endsAt: o.defaultEndsAt,
       badge: null,
     })),
     templates: TEMPLATES.map((t, order) => ({
@@ -63,12 +70,13 @@ function withMissingDefaults(saved: CatalogConfig): CatalogConfig {
   };
 }
 
-export function isInSeason(o: OccasionSetting, now: Date): boolean {
-  const t = now.getTime();
-  if (o.startsAt && t < Date.parse(o.startsAt)) return false;
-  if (o.endsAt && t > Date.parse(o.endsAt)) return false;
-  return true;
+/** Core: on when enabled. Festival: off/scheduled/live/ended from publish flag and dates. */
+export function occasionStatus(o: OccasionSetting, now: Date): FestivalStatus {
+  if (o.kind === "core") return o.enabled ? "live" : "off";
+  return festivalStatus(o, now);
 }
+
+export type AdminOccasion = OccasionSetting & { status: FestivalStatus };
 
 export interface PublicTemplate {
   id: string;
@@ -83,6 +91,7 @@ export interface PublicOccasion {
   id: string;
   label: string;
   tint: string;
+  kind: "core" | "festival";
   badge: string | null;
 }
 
@@ -90,6 +99,7 @@ export interface PublicConfig {
   branding: Branding;
   occasions: PublicOccasion[];
   templates: PublicTemplate[];
+  activeFestival: string | null;
 }
 
 export class SiteConfigService {
@@ -144,29 +154,48 @@ export class SiteConfigService {
     return this.save(BRANDING_KEY, input);
   }
 
-  setCatalog(input: CatalogConfig): Promise<CatalogConfig> {
-    return this.save(CATALOG_KEY, input);
+  /** Replaces occasion settings; stored template entries are kept untouched. */
+  async setCatalog(input: CatalogUpdate): Promise<CatalogConfig> {
+    const current = await this.getCatalog();
+    return this.save(CATALOG_KEY, { occasions: input.occasions, templates: current.templates });
+  }
+
+  async getAdminCatalog(
+    now: Date,
+  ): Promise<{ occasions: AdminOccasion[]; templates: CatalogConfig["templates"] }> {
+    const catalog = await this.getCatalog();
+    return {
+      occasions: catalog.occasions.map((o) => ({ ...o, status: occasionStatus(o, now) })),
+      templates: catalog.templates,
+    };
   }
 
   async getPublicConfig(now: Date): Promise<PublicConfig> {
     const [branding, catalog] = await Promise.all([this.getBranding(), this.getCatalog()]);
     const byOrder = <T extends { order: number }>(a: T, b: T): number => a.order - b.order;
     const occasions = catalog.occasions
-      .filter((o) => o.enabled && isInSeason(o, now))
+      .filter((o) => occasionStatus(o, now) === "live")
       .sort(byOrder);
     const visible = new Set(occasions.map((o) => o.id));
-    const templates = catalog.templates
-      .filter((s) => s.enabled)
-      .sort(byOrder)
-      .flatMap((s) => {
-        const base = TEMPLATES.find((t) => t.id === s.id);
-        if (!base || !visible.has(base.occasion)) return [];
-        return [{ ...base, featured: s.featured, badge: s.badge }];
-      });
+    const templates = catalog.templates.sort(byOrder).flatMap((s) => {
+      const base = TEMPLATES.find((t) => t.id === s.id);
+      if (!base || !visible.has(base.occasion)) return [];
+      return [{ ...base, featured: s.featured, badge: s.badge }];
+    });
     return {
       branding,
-      occasions: occasions.map(({ id, label, tint, badge }) => ({ id, label, tint, badge })),
+      occasions: occasions.map(({ id, label, tint, kind, badge }) => ({
+        id,
+        label,
+        tint,
+        kind,
+        badge,
+      })),
       templates,
+      activeFestival: pickActiveFestival(
+        occasions.filter((o) => o.kind === "festival"),
+        now,
+      ),
     };
   }
 }

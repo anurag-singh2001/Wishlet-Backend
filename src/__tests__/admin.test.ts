@@ -10,7 +10,6 @@ import { userRepository } from "../repositories/user.repository.js";
 import { settingRepository } from "../repositories/setting.repository.js";
 import { signSessionToken } from "../utils/session-token.js";
 import { siteConfigService } from "../services/site-config.service.js";
-import type { CatalogConfig } from "../schemas/admin.schema.js";
 
 const USERS: Record<string, { email: string; blockedAt: Date | null }> = {
   admin: { email: "boss@example.com", blockedAt: null },
@@ -129,41 +128,32 @@ describe("admin portal", () => {
     assert.strictEqual(bad.statusCode, 400);
   });
 
-  test("catalog with an unknown template id is rejected", async () => {
+  test("catalog with an unknown occasion id is rejected", async () => {
     reset();
     const catalog = await siteConfigService.getCatalog();
     const res = await app.inject({
       method: "PUT",
       url: "/api/v1/admin/config/catalog",
       headers: await as("admin"),
-      payload: {
-        ...catalog,
-        templates: [{ id: "nope", enabled: true, order: 0, featured: false, badge: null }],
-      },
+      payload: { occasions: [{ ...catalog.occasions[0], id: "nope" }] },
     });
     assert.strictEqual(res.statusCode, 400);
   });
 
-  async function disableTemplate(id: string): Promise<void> {
-    const catalog = await siteConfigService.getCatalog();
-    const next: CatalogConfig = {
-      ...catalog,
-      templates: catalog.templates.map((t) => (t.id === id ? { ...t, enabled: false } : t)),
-    };
-    await siteConfigService.setCatalog(next);
-  }
-
-  test("disabled template is rejected on create and hidden from /templates", async () => {
+  test("hidden core occasion is rejected on create and hidden from /templates", async () => {
     reset();
     assert.strictEqual((await create("user")).statusCode, 201);
-    await disableTemplate("birthday-minimal");
+    const catalog = await siteConfigService.getCatalog();
+    await siteConfigService.setCatalog({
+      occasions: catalog.occasions.map((o) => (o.id === "birthday" ? { ...o, enabled: false } : o)),
+    });
     const res = await create("user");
     assert.strictEqual(res.statusCode, 400);
     assert.strictEqual((res.json() as { error: string }).error, "UNAVAILABLE");
     const list = await app.inject({ method: "GET", url: "/api/v1/templates" });
     const ids = list.json<{ templates: { id: string }[] }>().templates.map((t) => t.id);
     assert.ok(!ids.includes("birthday-minimal"));
-    assert.ok(ids.includes("birthday-neon"));
+    assert.ok(!ids.includes("birthday-neon"));
   });
 
   test("blocked user gets 403 BLOCKED on create", async () => {
@@ -178,18 +168,25 @@ describe("admin portal", () => {
     reset();
     const catalog = await siteConfigService.getCatalog();
     await siteConfigService.setCatalog({
-      ...catalog,
       occasions: catalog.occasions.map((o) =>
         o.id === "diwali"
-          ? { ...o, startsAt: "2026-10-01T00:00:00.000Z", endsAt: "2026-11-15T00:00:00.000Z" }
+          ? {
+              ...o,
+              enabled: true,
+              festiveLook: true,
+              startsAt: "2026-10-01T00:00:00.000Z",
+              endsAt: "2026-11-15T00:00:00.000Z",
+            }
           : o,
       ),
     });
     const inSeason = await siteConfigService.getPublicConfig(new Date("2026-11-01T00:00:00Z"));
     assert.ok(inSeason.occasions.some((o) => o.id === "diwali"));
     assert.ok(inSeason.templates.some((t) => t.id === "diwali-diyas"));
+    assert.strictEqual(inSeason.activeFestival, "diwali");
     const after = await siteConfigService.getPublicConfig(new Date("2026-12-01T00:00:00Z"));
     assert.ok(!after.occasions.some((o) => o.id === "diwali"));
     assert.ok(!after.templates.some((t) => t.id === "diwali-diyas"));
+    assert.strictEqual(after.activeFestival, null);
   });
 });
